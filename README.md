@@ -1,6 +1,18 @@
-# LidlStats
+<p align="center">
+  <img src="docs/icon.png" width="128" alt="LidlStats icon">
+</p>
 
-![Pantallas de LidlStats](docs/screenshots/lidlstats_screens_horizontal.png)
+<h1 align="center">LidlStats</h1>
+
+<p align="center">
+  <a href="https://ko-fi.com/neoruben" target="_blank">
+    <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi" height="38">
+  </a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/lidlstats_screens_horizontal.png" alt="LidlStats: Tickets, Estadísticas y Productos" width="900">
+</p>
 
 ## Español
 
@@ -26,6 +38,10 @@ El ticket impreso es HTML cuyos `<span>` llevan los datos en atributos (`data-ar
 `data-art-quantity`, `data-unit-price`, `data-tax-percentage`…). Ver
 [`LidlReceiptParser`](app/src/main/java/io/github/neoruben/lidlstats/parser/LidlReceiptParser.kt).
 
+App no oficial, sin relación con Lidl.
+
+Si te gusta el proyecto o te resulta de utilidad, puedes apoyar su desarrollo invitándome a un café en [Ko-fi](https://ko-fi.com/neoruben).
+
 ## English
 
 Android app (Jetpack Compose) that downloads your in-store receipts from your **Lidl Spain** account and
@@ -49,3 +65,7 @@ After signing in, the app reuses the WebView session cookies to call the same JS
 The printed receipt is HTML whose `<span>` elements carry the data in attributes (`data-art-description`,
 `data-art-quantity`, `data-unit-price`, `data-tax-percentage`, …). See
 [`LidlReceiptParser`](app/src/main/java/io/github/neoruben/lidlstats/parser/LidlReceiptParser.kt).
+
+Unofficial app, not affiliated with Lidl.
+
+If you like the project or find it useful, you can support its development by buying me a coffee on [Ko-fi](https://ko-fi.com/neoruben).
