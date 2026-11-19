@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Círculo amarillo con borde rojo (colores Lidl) y gráfica de barras azul -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#E60A14"
+        android:pathData="M54,22a32,32 0,1 1,0 64a32,32 0,1 1,0 -64z" />
+    <path
+        android:fillColor="#FFF000"
+        android:pathData="M54,26.5a27.5,27.5 0,1 1,0 55a27.5,27.5 0,1 1,0 -55z" />
+    <path
+        android:fillColor="#0050AA"
+        android:pathData="M39,58h7v12h-7zM50.5,46h7v24h-7zM62,52h7v18h-7z" />
+</vector>
