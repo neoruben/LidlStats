@@ -1,7 +1,7 @@
 # LidlStats — notas para Claude
 
 App Android (Kotlin + Compose) que descarga los tickets de tienda de lidl.es y hace estadísticas.
-Basada en MercaStats (github neoruben/mercadona-stats). Repo: github neoruben/LidlStats (**privado**).
+Basada en MercaStats (github neoruben/mercadona-stats). Repo: github neoruben/LidlStats (público; está en la tabla del perfil neoruben/neoruben).
 Paquete `io.github.neoruben.lidlstats`.
 
 ## API de Lidl (descubierta con el navegador)
