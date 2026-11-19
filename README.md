@@ -26,15 +26,6 @@ El ticket impreso es HTML cuyos `<span>` llevan los datos en atributos (`data-ar
 `data-art-quantity`, `data-unit-price`, `data-tax-percentage`…). Ver
 [`LidlReceiptParser`](app/src/main/java/io/github/neoruben/lidlstats/parser/LidlReceiptParser.kt).
 
-### Compilar
-```
-./gradlew assembleDebug
-```
-La firma de la versión release lee `keystore.properties` (en la raíz del proyecto o en `~/Documents/claves/`),
-que nunca se sube al repositorio.
-
-App no oficial, sin relación con Lidl.
-
 ## English
 
 Android app (Jetpack Compose) that downloads your in-store receipts from your **Lidl Spain** account and
@@ -58,11 +49,3 @@ After signing in, the app reuses the WebView session cookies to call the same JS
 The printed receipt is HTML whose `<span>` elements carry the data in attributes (`data-art-description`,
 `data-art-quantity`, `data-unit-price`, `data-tax-percentage`, …). See
 [`LidlReceiptParser`](app/src/main/java/io/github/neoruben/lidlstats/parser/LidlReceiptParser.kt).
-
-### Build
-```
-./gradlew assembleDebug
-```
-Release signing reads `keystore.properties` (project root or `~/Documents/claves/`), which is never committed.
-
-Unofficial app, not affiliated with Lidl.
