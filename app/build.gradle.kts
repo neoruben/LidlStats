@@ -50,6 +50,17 @@ android {
     }
 }
 
+// APK publicada: LidlStats-vX.Y.Z.apk (misma convención que MercaStats o PayFilter).
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.outputs.forEach { output ->
+            (output as com.android.build.api.variant.impl.VariantOutputImpl).outputFileName.set(
+                output.versionName.map { "LidlStats-v$it.apk" }
+            )
+        }
+    }
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.02.01")
     implementation(composeBom)
