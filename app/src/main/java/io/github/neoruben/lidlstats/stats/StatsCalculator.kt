@@ -34,11 +34,59 @@ data class SpendSummary(
     val productStats: List<ProductSpendStat>
 )
 
+/** Precio de un producto en una compra: PVP unitario (€/ud o €/kg) y lo pagado de verdad tras descuentos. */
+data class PricePoint(
+    val dateIso: String, // YYYY-MM-DD
+    val unitPrice: Double,
+    val paidUnitPrice: Double
+)
+
+data class ProductPriceHistory(
+    val productKey: String,
+    val displayName: String,
+    val unit: String?,
+    /** Una entrada por ticket, en orden cronológico. */
+    val points: List<PricePoint>
+) {
+    val currentPrice: Double? get() = points.lastOrNull()?.unitPrice
+    val firstPrice: Double? get() = points.firstOrNull()?.unitPrice
+    val minPrice: Double? get() = points.minOfOrNull { it.unitPrice }
+    val maxPrice: Double? get() = points.maxOfOrNull { it.unitPrice }
+    val averagePrice: Double? get() = if (points.isEmpty()) null else points.sumOf { it.unitPrice } / points.size
+    /** Variación del precio actual respecto a la primera compra. */
+    val change: Double? get() = if (points.size < 2) null else currentPrice!! - firstPrice!!
+    val changePercent: Double?
+        get() = change?.let { c -> firstPrice!!.takeIf { it > 0.0 }?.let { c / it * 100.0 } }
+}
+
 object StatsCalculator {
 
     private val MONTH_NAMES_ES = listOf(
         "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
     )
+
+    private fun normalizedName(description: String) = description.trim().replace(Regex("\\s+"), " ")
+    private fun productKey(name: String) = name.uppercase(Locale.ROOT)
+
+    /** Histórico de precios de un producto (misma clave que [ProductSpendStat.productKey]). */
+    fun priceHistory(tickets: List<StoredTicket>, productKey: String): ProductPriceHistory {
+        var displayName = productKey
+        var unit: String? = null
+        val points = mutableListOf<PricePoint>()
+        for (ticket in tickets.sortedBy { it.dateTimeIso }) {
+            val lines = ticket.items.filter { productKey(normalizedName(it.description)) == productKey }
+            if (lines.isEmpty()) continue
+            displayName = normalizedName(lines.first().description)
+            if (unit == null) unit = lines.firstNotNullOfOrNull { it.unit }
+            val quantity = lines.sumOf { it.quantity }
+            val paid = lines.sumOf { it.totalPrice }
+            val paidUnit = if (quantity > 0) paid / quantity else paid
+            // PVP de la etiqueta; si el ticket no lo trae, lo pagado por unidad.
+            val shelf = lines.mapNotNull { it.unitPrice }.takeIf { it.isNotEmpty() }?.average() ?: paidUnit
+            points.add(PricePoint(ticket.dateTimeIso.take(10), shelf, paidUnit))
+        }
+        return ProductPriceHistory(productKey, displayName, unit, points)
+    }
 
     fun calculate(tickets: List<StoredTicket>): SpendSummary {
         if (tickets.isEmpty()) {
@@ -73,8 +121,8 @@ object StatsCalculator {
         for (ticket in tickets.sortedBy { it.dateTimeIso }) {
             val seen = hashSetOf<String>()
             for (item in ticket.items) {
-                val name = item.description.trim().replace(Regex("\\s+"), " ")
-                val key = name.uppercase(Locale.ROOT)
+                val name = normalizedName(item.description)
+                val key = productKey(name)
                 if (key.isBlank()) continue
                 val acc = products.getOrPut(key) { Acc(name, item.unit) }
                 acc.quantity += item.quantity

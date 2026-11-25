@@ -2,6 +2,7 @@ package io.github.neoruben.lidlstats.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -74,7 +76,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.SpanStyle
@@ -90,8 +98,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.github.neoruben.lidlstats.data.StoredTicket
 import io.github.neoruben.lidlstats.stats.PeriodSpendStat
+import io.github.neoruben.lidlstats.stats.ProductPriceHistory
 import io.github.neoruben.lidlstats.stats.ProductSpendStat
 import io.github.neoruben.lidlstats.stats.SpendSummary
+import io.github.neoruben.lidlstats.stats.StatsCalculator
+import java.time.LocalDate
 import java.util.Locale
 import kotlin.math.abs
 
@@ -107,6 +118,7 @@ private val BackgroundScreen = Color(0xFFF4F6F9)
 private val CardBorder = Color(0xFFE1E6EE)
 private val TextPrimary = Color(0xFF14202E)
 private val TextSecondary = Color(0xFF5B6878)
+private val PriceDown = Color(0xFF16A34A)
 
 private const val CHART_WINDOW = 5
 
@@ -125,6 +137,7 @@ fun LidlMainScaffold(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedTicket by remember { mutableStateOf<StoredTicket?>(null) }
+    var selectedProductKey by remember { mutableStateOf<String?>(null) }
     val dateRangeText = remember(tickets) {
         if (tickets.isEmpty()) "Sin compras registradas"
         else {
@@ -175,12 +188,16 @@ fun LidlMainScaffold(
                     onSyncClick, onLogoutClick, onTicketClick = { selectedTicket = it }
                 )
                 1 -> StatsTab(summary)
-                else -> ProductsTab(summary.productStats)
+                else -> ProductsTab(summary.productStats, onProductClick = { selectedProductKey = it.productKey })
             }
         }
     }
 
     selectedTicket?.let { TicketDialog(it, onDismiss = { selectedTicket = null }) }
+    selectedProductKey?.let { key ->
+        val history = remember(tickets, key) { StatsCalculator.priceHistory(tickets, key) }
+        ProductPriceDialog(history, onDismiss = { selectedProductKey = null })
+    }
 }
 
 @Composable
@@ -776,7 +793,7 @@ private fun KpiCard(title: String, value: String, icon: ImageVector, accent: Col
 // ---------------------------------------------------------------- Productos
 
 @Composable
-private fun ProductsTab(products: List<ProductSpendStat>) {
+private fun ProductsTab(products: List<ProductSpendStat>, onProductClick: (ProductSpendStat) -> Unit) {
     var sortTab by remember { mutableIntStateOf(0) } // 0 = Cantidad, 1 = Gasto
     var query by remember { mutableStateOf("") }
 
@@ -871,7 +888,7 @@ private fun ProductsTab(products: List<ProductSpendStat>) {
                     else -> LidlBlueSoft to LidlBlue
                 }
 
-                WhiteCard(radius = 14) {
+                WhiteCard(radius = 14, onClick = { onProductClick(product) }) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             Modifier.fillMaxWidth(),
@@ -913,16 +930,196 @@ private fun ProductsTab(products: List<ProductSpendStat>) {
     }
 }
 
+/** Estadísticas del precio de un producto a lo largo del tiempo. */
+@Composable
+private fun ProductPriceDialog(history: ProductPriceHistory, onDismiss: () -> Unit) {
+    val suffix = if (history.unit == "kg") " /kg" else ""
+    fun price(v: Double?) = v?.let { formatEuro(it) + suffix } ?: "—"
+    val n = history.points.size
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = BackgroundScreen),
+            modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = 720.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(LidlBlue).padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(history.displayName, style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            "$n ${if (n == 1) "compra" else "compras"} · precio ${if (history.unit == "kg") "por kg" else "por unidad"}",
+                            style = MaterialTheme.typography.bodySmall, color = LidlYellow
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Cerrar", tint = Color.White)
+                    }
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (n == 0) {
+                        Text("No hay compras de este producto.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                        return@Column
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PriceStatTile("Actual", price(history.currentPrice), LidlBlue, Modifier.weight(1f))
+                        val change = history.change
+                        val changeColor = when {
+                            change == null || abs(change) < 0.005 -> TextPrimary
+                            change > 0 -> LidlRed
+                            else -> PriceDown
+                        }
+                        PriceStatTile("Variación", formatChange(change, history.changePercent), changeColor, Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PriceStatTile("Mínimo", price(history.minPrice), PriceDown, Modifier.weight(1f))
+                        PriceStatTile("Máximo", price(history.maxPrice), LidlRed, Modifier.weight(1f))
+                        PriceStatTile("Media", price(history.averagePrice), TextPrimary, Modifier.weight(1f))
+                    }
+                    WhiteCard {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Evolución del precio", style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold, color = TextPrimary)
+                            if (n < 2) {
+                                Text("Solo hay una compra: hace falta al menos otra para ver la evolución.",
+                                    style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            } else {
+                                PriceLineChart(history, suffix)
+                            }
+                            Text("Variación: precio actual frente a la primera compra (${formatDateEs(history.points.first().dateIso)}).",
+                                style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        }
+                    }
+                    WhiteCard {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                            history.points.asReversed().forEachIndexed { i, p ->
+                                if (i > 0) HorizontalDivider(color = CardBorder, modifier = Modifier.padding(horizontal = 14.dp))
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(formatDateEs(p.dateIso), style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(formatEuro(p.unitPrice) + suffix, style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold, color = LidlBlue)
+                                        if (p.paidUnitPrice < p.unitPrice - 0.005) {
+                                            Text("pagado ${formatEuro(p.paidUnitPrice)}$suffix con descuento",
+                                                style = MaterialTheme.typography.labelSmall, color = PriceDown)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PriceStatTile(title: String, value: String, valueColor: Color, modifier: Modifier) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, CardBorder),
+        modifier = modifier
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Text(title, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold,
+                color = valueColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** Precio frente a fecha: el eje X es proporcional a los días, la línea discontinua es la media. */
+@Composable
+private fun PriceLineChart(history: ProductPriceHistory, suffix: String) {
+    val points = history.points
+    val days = remember(points) { points.map { runCatching { LocalDate.parse(it.dateIso).toEpochDay() }.getOrDefault(0L) } }
+    val minP = history.minPrice!!
+    val maxP = history.maxPrice!!
+    // Margen vertical para que una serie plana no quede pegada a un borde.
+    val pad = ((maxP - minP) * 0.15).coerceAtLeast(maxP * 0.05).coerceAtLeast(0.01)
+    val lo = (minP - pad).coerceAtLeast(0.0)
+    val hi = maxP + pad
+    val avg = history.averagePrice!!
+    val firstDay = days.first()
+    val spanDays = (days.last() - firstDay).coerceAtLeast(1L)
+
+    Row(Modifier.fillMaxWidth().height(170.dp)) {
+        Column(
+            Modifier.fillMaxHeight().padding(end = 6.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(formatEuro(hi), style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            Text(formatEuro(lo), style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+        }
+        Canvas(Modifier.weight(1f).fillMaxHeight().padding(vertical = 8.dp)) {
+            fun x(i: Int) = if (days.last() == firstDay) size.width * i / (points.size - 1).coerceAtLeast(1)
+                else size.width * ((days[i] - firstDay).toFloat() / spanDays)
+            fun y(v: Double) = size.height * (1f - ((v - lo) / (hi - lo)).toFloat())
+
+            drawLine(LidlYellow, Offset(0f, size.height), Offset(size.width, size.height), strokeWidth = 3.dp.toPx())
+            drawLine(
+                TextSecondary.copy(alpha = 0.6f), Offset(0f, y(avg)), Offset(size.width, y(avg)),
+                strokeWidth = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
+            )
+            val path = Path().apply {
+                points.forEachIndexed { i, p -> if (i == 0) moveTo(x(i), y(p.unitPrice)) else lineTo(x(i), y(p.unitPrice)) }
+            }
+            drawPath(path, LidlBlue, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            points.forEachIndexed { i, p ->
+                val isLast = i == points.lastIndex
+                drawCircle(Color.White, radius = 5.dp.toPx(), center = Offset(x(i), y(p.unitPrice)))
+                drawCircle(if (isLast) LidlRed else LidlBlue, radius = 3.5.dp.toPx(), center = Offset(x(i), y(p.unitPrice)))
+            }
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(formatDateEs(points.first().dateIso), style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+        Text("--- media ${formatEuro(avg)}$suffix", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+        Text(formatDateEs(points.last().dateIso), style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+    }
+}
+
+private fun formatChange(change: Double?, percent: Double?): String {
+    if (change == null) return "—"
+    val es = Locale("es", "ES")
+    val sign = if (change > 0.005) "+" else if (change < -0.005) "−" else ""
+    val pct = percent?.let { String.format(es, " (%s%.1f %%)", sign, abs(it)) } ?: ""
+    return String.format(es, "%s%.2f €", sign, abs(change)) + pct
+}
+
+/** YYYY-MM-DD → DD/MM/YYYY */
+private fun formatDateEs(dateIso: String): String {
+    val d = dateIso.split("-")
+    return if (d.size == 3) "${d[2]}/${d[1]}/${d[0]}" else dateIso
+}
+
 // ---------------------------------------------------------------- Comunes
 
 @Composable
-private fun WhiteCard(radius: Int = 16, content: @Composable () -> Unit) {
+private fun WhiteCard(radius: Int = 16, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Card(
         shape = RoundedCornerShape(radius.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, CardBorder),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
     ) { content() }
 }
 
